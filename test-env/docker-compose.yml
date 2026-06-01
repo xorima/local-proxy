@@ -1,0 +1,10 @@
+services:
+  squid:
+    build:
+      context: .
+      dockerfile: Dockerfile.squid
+    ports:
+      - "13128:3128"
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./htpasswd:/etc/squid/htpasswd:ro

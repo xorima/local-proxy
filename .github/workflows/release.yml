@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: google-github-actions/release-please-action@v4
+        id: release
+        with:
+          release-type: go
+          package-name: local-proxy
+
+  build:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          for cmd in serve hashgen magic; do
+            ext=""
+            [ "${{ matrix.goos }}" = "windows" ] && ext=".exe"
+            GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+              go build -o "dist/local-proxy-${cmd}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" \
+              ./cmd/${cmd}
+          done
+          ext=""
+          [ "${{ matrix.goos }}" = "windows" ] && ext=".exe"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            go build -o "dist/local-proxy-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" .
+      - name: Create archive
+        run: |
+          cd dist
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip -r "../local-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.zip" .
+          else
+            tar czf "../local-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" .
+          fi
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            gh release upload "$TAG" "local-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.zip" --clobber
+          else
+            gh release upload "$TAG" "local-proxy-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz" --clobber
+          fi
