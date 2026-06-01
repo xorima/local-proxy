@@ -1,0 +1,23 @@
+# Binaries
+local-proxy
+*.exe
+
+# Build output
+dist/
+
+# Archives
+*.tar.gz
+*.zip
+
+# PID files
+*.pid
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
